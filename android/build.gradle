@@ -32,3 +32,8 @@ android {
         disable 'InvalidPackage'
     }
 }
+
+
+dependencies {
+    implementation 'com.arthenica:ffmpeg-kit-min:4.5.1-1.LTS'
+}

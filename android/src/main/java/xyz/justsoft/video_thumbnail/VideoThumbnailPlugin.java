@@ -26,6 +26,10 @@ import io.flutter.plugin.common.MethodChannel;
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler;
 import io.flutter.plugin.common.MethodChannel.Result;
 
+import com.arthenica.ffmpegkit.FFmpegKit;
+import com.arthenica.ffmpegkit.ReturnCode;
+import com.arthenica.ffmpegkit.FFmpegSession;
+
 /**
  * VideoThumbnailPlugin
  */
@@ -137,10 +141,9 @@ public class VideoThumbnailPlugin implements FlutterPlugin, MethodCallHandler {
             int quality) {
         // Log.d(TAG, String.format("buildThumbnailFile( format:%d, maxh:%d, maxw:%d,
         // timeMs:%d, quality:%d )", format, maxh, maxw, timeMs, quality));
-        final byte bytes[] = buildThumbnailData(vidPath, headers, format, maxh, maxw, timeMs, quality);
         final String ext = formatExt(format);
         final int i = vidPath.lastIndexOf(".");
-        String fullpath = vidPath.substring(0, i + 1) + ext;
+        String fullpath = vidPath.substring(0, i) + "_" + timeMs + "." + ext;
         final boolean isLocalFile = (vidPath.startsWith("/") || vidPath.startsWith("file://"));
 
         if (path == null && !isLocalFile) {
@@ -162,7 +165,33 @@ public class VideoThumbnailPlugin implements FlutterPlugin, MethodCallHandler {
             }
         }
 
+        if (isLocalFile) {
+            Log.d(TAG, "Creating thumbnail file with FFMPEG: " + fullpath);
+
+            FFmpegSession session = FFmpegKit
+                    .execute("-ss " + Math.round(timeMs / 1000) + " -i " + vidPath + " -vframes 1 -y " + fullpath);
+
+            if (ReturnCode.isSuccess(session.getReturnCode())) {
+                // SUCCESS
+                Log.d(TAG, "Successfully created & wrote thumbnail file with FFMPEG to " + fullpath);
+                return fullpath;
+
+            } else if (ReturnCode.isCancel(session.getReturnCode())) {
+                // CANCEL
+                throw new RuntimeException("Creating thumbnail file with FFMPEG was cancelled...");
+            } else {
+                // FAILURE
+                Log.d(TAG, String.format("Command failed with state %s and rc %s.%s", session.getState(),
+                        session.getReturnCode(), session.getFailStackTrace()));
+                throw new RuntimeException("Creating thumbnail file with FFMPEG failed...");
+
+            }
+        }
+
         try {
+            Log.d(TAG, "Creating thumbnail file from byteArray...");
+            final byte bytes[] = buildThumbnailData(vidPath, headers, format, maxh, maxw, timeMs, quality);
+
             FileOutputStream f = new FileOutputStream(fullpath);
             f.write(bytes);
             f.close();
